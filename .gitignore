@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+.env
+dist/
+*.log
+logs/
+.idea/
