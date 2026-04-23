@@ -12,8 +12,9 @@ async function createContext(browser) {
 }
 
 class BrowserPool {
-  constructor({ maxBrowsers = 5 } = {}) {
+  constructor({ maxBrowsers = 5, rotator = null } = {}) {
     this.maxBrowsers = maxBrowsers;
+    this.rotator = rotator;
     this.browsers = [];
     this.available = 0;
   }
@@ -23,7 +24,8 @@ class BrowserPool {
   }
 
   async acquire() {
-    const profile = new StealthProfile();
+    const proxy = this.rotator ? this.rotator.next() : null;
+    const profile = new StealthProfile({ proxy });
     const browser = await puppeteer.launch({
       headless: true,
       args: profile.getLaunchArgs(),
