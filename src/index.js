@@ -7,12 +7,17 @@ class PuppeteerRunner {
     headless = true,
     defaultTimeout = parseInt(process.env.DEFAULT_TIMEOUT, 10) || 30000,
     onProgress = null,
+    proxyRotator = null,
+    sessionStore = null,
+    rateLimiter = null,
   } = {}) {
     this.concurrency = concurrency;
     this.headless = headless;
     this.defaultTimeout = defaultTimeout;
     this.onProgress = onProgress;
-    this.pool = new BrowserPool({ maxBrowsers: concurrency });
+    this.sessionStore = sessionStore;
+    this.rateLimiter = rateLimiter;
+    this.pool = new BrowserPool({ maxBrowsers: concurrency, rotator: proxyRotator });
   }
 
   async run(accounts, taskFn) {
@@ -27,7 +32,16 @@ class PuppeteerRunner {
       const page = await context.newPage();
       page.setDefaultTimeout(this.defaultTimeout);
       try {
-        return await taskFn(page, account);
+        if (this.sessionStore) {
+          const cookies = await this.sessionStore.load(account.id);
+          if (cookies) await page.setCookie(...cookies);
+        }
+        const result = await taskFn(page, account, { rateLimiter: this.rateLimiter });
+        if (this.sessionStore) {
+          const cookies = await page.cookies();
+          await this.sessionStore.save(account.id, cookies);
+        }
+        return result;
       } finally {
         await page.close();
         await this.pool.release(context);
